@@ -11,7 +11,7 @@ namespace GenericCrud.ViewModels
         public Dictionary<string, string> Values { get; set; } = new();
     }
 
-    public class CrudListViewModel
+    public class CrudListViewModel 
     {
         public string EntityName { get; set; } = string.Empty;
         public EntityMetadata Metadata { get; set; } = default!;

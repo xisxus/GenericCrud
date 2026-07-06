@@ -1,0 +1,649 @@
+@model GenericCrud.ViewModels.CrudListViewModel2
+
+@using GenericCrud.Metadata
+@{
+    ViewData["Title"] = Model.EntityName;
+    var colCount = Model.Metadata.Properties.Count + 2;
+}
+
+<div class="row g-2">
+
+    
+    <div class="col-12 col-md-7 col-xl-5 col-xxl-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 id="crudMaster-formTitle">Add @Model.EntityName</h4>
+            </div>
+            <div class="card-body mt-2">
+
+                @if (TempData["Success"] != null)
+                {
+                    <div class="alert alert-success alert-dismissible fade show fs-9 mb-3" role="alert">
+                        <i class="fa-regular fa-circle-check me-2"></i>@TempData["Success"]
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                }
+
+                <div id="crudMaster-errorBox" class="alert alert-danger fs-9 mb-3" style="display:none;">
+                    <ul class="mb-0" id="crudMaster-errorList"></ul>
+                </div>
+
+                <form id="crudMaster-form"
+                      method="post"
+                      enctype="multipart/form-data"
+                      action="@Url.Action("Save", "CrudMaster", new { entity = Model.EntityName })">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="crudMaster-id" name="__CrudId" value="" />
+
+                    @foreach (var prop in Model.Metadata.Properties.Where(p => !p.IsIdentity))
+                    {
+                        if (prop.IsPrimaryKey)
+                        {
+                            @* PK written via hidden crudMaster-id above — skip rendering *@
+                        }
+                        else
+                        {
+                            <div class="col-sm-12 col-md-12 mb-3" id="field-wrap-@prop.Name">
+
+                                @switch (prop.InputType)
+                                {
+                                    case CrudInputType.Checkbox:
+                                        <div class="d-flex align-items-center gap-2 ps-1">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input crudMaster-field"
+                                                       type="checkbox"
+                                                       role="switch"
+                                                       id="field_@prop.Name"
+                                                       name="@prop.Name"
+                                                       value="true"
+                                                       data-fieldname="@prop.Name" />
+                                            </div>
+                                            <label class="form-check-label mb-0" for="field_@prop.Name">
+                                                @prop.DisplayName
+                                                @if (prop.IsRequired)
+                                                {
+                                                    <span class="text-danger ms-1">*</span>
+                                                }
+                                            </label>
+                                        </div>
+                                        break;
+
+                                    case CrudInputType.TextArea:
+                                        <div class="flatpickr-input-container">
+                                            <div class="form-floating">
+                                                <textarea id="field_@prop.Name"
+                                                          name="@prop.Name"
+                                                          class="form-control crudMaster-field"
+                                                          placeholder="@prop.DisplayName"
+                                                          rows="3"
+                                                          maxlength="@prop.MaxLength"
+                                                          data-fieldname="@prop.Name"
+                                                          required="@prop.IsRequired"></textarea>
+                                                <label for="field_@prop.Name">
+                                                    @prop.DisplayName
+                                                    @if (prop.IsRequired)
+                                                    {
+                                                        <span class="text-danger">*</span>
+                                                    }
+                                                </label>
+                                            </div>
+                                        </div>
+                                        break;
+
+                                    case CrudInputType.Dropdown when prop.IsForeignKey:
+                                        <div class="form-floating">
+                                            <select id="field_@prop.Name"
+                                                    name="@prop.Name"
+                                                    class="form-select crudMaster-field"
+                                                    data-fieldname="@prop.Name"
+                                                    required="@prop.IsRequired">
+                                                <option value="">-- Select @prop.DisplayName --</option>
+                                                @foreach (var opt in Model.FormDropdownOptions.GetValueOrDefault(prop.Name, new List<GenericCrud.Services.DropdownItem>()))
+                                                {
+                                                    <option value="@opt.Value">@opt.Text</option>
+                                                }
+                                            </select>
+                                            <label for="field_@prop.Name">
+                                                @prop.DisplayName
+                                                @if (prop.IsRequired)
+                                                {
+                                                    <span class="text-danger">*</span>
+                                                }
+                                            </label>
+                                        </div>
+                                        break;
+
+                                    case CrudInputType.Dropdown:
+                                        <div class="form-floating">
+                                            <select id="field_@prop.Name"
+                                                    name="@prop.Name"
+                                                    class="form-select crudMaster-field"
+                                                    data-fieldname="@prop.Name"
+                                                    required="@prop.IsRequired">
+                                                @foreach (var enumValue in Enum.GetNames(prop.UnderlyingType))
+                                                {
+                                                    <option value="@enumValue">@enumValue</option>
+                                                }
+                                            </select>
+                                            <label for="field_@prop.Name">
+                                                @prop.DisplayName
+                                                @if (prop.IsRequired)
+                                                {
+                                                    <span class="text-danger">*</span>
+                                                }
+                                            </label>
+                                        </div>
+                                        break;
+
+                                    case CrudInputType.File:
+                                        <label class="form-label fw-semibold fs-9 text-body-secondary mb-1">
+                                            @prop.DisplayName
+                                            @if (prop.IsRequired)
+                                            {
+                                                <span class="text-danger">*</span>
+                                            }
+                                        </label>
+                                        <input type="file"
+                                               id="field_@prop.Name"
+                                               name="@prop.Name"
+                                               class="form-control crudMaster-field"
+                                               data-fieldname="@prop.Name" />
+                                        break;
+
+                                    case CrudInputType.Number:
+                                        <div class="flatpickr-input-container">
+                                            <div class="form-floating">
+                                                <input type="number" step="1"
+                                                       id="field_@prop.Name" name="@prop.Name"
+                                                       class="form-control crudMaster-field"
+                                                       placeholder="@prop.DisplayName"
+                                                       min="@prop.RangeMin" max="@prop.RangeMax"
+                                                       data-fieldname="@prop.Name"
+                                                       required="@prop.IsRequired"
+                                                       autocomplete="off" />
+                                                <label for="field_@prop.Name">
+                                                    @prop.DisplayName
+                                                    @if (prop.IsRequired)
+                                                    {
+                                                        <span class="text-danger">*</span>
+                                                    }
+                                                </label>
+                                            </div>
+                                        </div>
+                                        break;
+
+                                    case CrudInputType.Decimal:
+                                        <div class="flatpickr-input-container">
+                                            <div class="form-floating">
+                                                <input type="number" step="0.01"
+                                                       id="field_@prop.Name" name="@prop.Name"
+                                                       class="form-control crudMaster-field"
+                                                       placeholder="@prop.DisplayName"
+                                                       min="@prop.RangeMin" max="@prop.RangeMax"
+                                                       data-fieldname="@prop.Name"
+                                                       required="@prop.IsRequired"
+                                                       autocomplete="off" />
+                                                <label for="field_@prop.Name">
+                                                    @prop.DisplayName
+                                                    @if (prop.IsRequired)
+                                                    {
+                                                        <span class="text-danger">*</span>
+                                                    }
+                                                </label>
+                                            </div>
+                                        </div>
+                                        break;
+
+                                    case CrudInputType.Date:
+                                        <div class="flatpickr-input-container">
+                                            <div class="form-floating">
+                                                <input type="date"
+                                                       id="field_@prop.Name" name="@prop.Name"
+                                                       class="form-control crudMaster-field"
+                                                       placeholder="@prop.DisplayName"
+                                                       data-fieldname="@prop.Name"
+                                                       required="@prop.IsRequired" />
+                                                <label for="field_@prop.Name">
+                                                    @prop.DisplayName
+                                                    @if (prop.IsRequired)
+                                                    {
+                                                        <span class="text-danger">*</span>
+                                                    }
+                                                </label>
+                                            </div>
+                                        </div>
+                                        break;
+
+                                    case CrudInputType.Time:
+                                        <div class="flatpickr-input-container">
+                                            <div class="form-floating">
+                                                <input type="time"
+                                                       id="field_@prop.Name" name="@prop.Name"
+                                                       class="form-control crudMaster-field"
+                                                       placeholder="@prop.DisplayName"
+                                                       data-fieldname="@prop.Name"
+                                                       required="@prop.IsRequired" />
+                                                <label for="field_@prop.Name">
+                                                    @prop.DisplayName
+                                                    @if (prop.IsRequired)
+                                                    {
+                                                        <span class="text-danger">*</span>
+                                                    }
+                                                </label>
+                                            </div>
+                                        </div>
+                                        break;
+
+                                    default:
+                                        <div class="flatpickr-input-container">
+                                            <div class="form-floating">
+                                                <input type="text"
+                                                       id="field_@prop.Name" name="@prop.Name"
+                                                       class="form-control crudMaster-field"
+                                                       placeholder="@prop.DisplayName"
+                                                       maxlength="@prop.MaxLength"
+                                                       data-fieldname="@prop.Name"
+                                                       required="@prop.IsRequired"
+                                                       autocomplete="off" />
+                                                <label for="field_@prop.Name">
+                                                    @prop.DisplayName
+                                                    @if (prop.IsRequired)
+                                                    {
+                                                        <span class="text-danger">*</span>
+                                                    }
+                                                </label>
+                                            </div>
+                                        </div>
+                                        break;
+                                }
+
+                            </div>
+                        }
+                    }
+
+                    <div class="col-12 mb-2">
+                        <div class="row g-3 justify-content-end">
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-phoenix-primary px-5" id="crudMaster-resetBtn">
+                                    Reset
+                                </button>
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-primary px-5 px-sm-15" id="crudMaster-saveBtn">
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="col-12 col-md-7 col-xl-7 col-xxl-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>Information of @Model.EntityName</h4>
+            </div>
+            <div class="card-body">
+
+              
+                <div class="row g-3 justify-content-between align-items-end mb-2">
+                    <div class="col-12 col-sm-auto">
+                        <div class="d-flex align-items-center me-3">
+                            <span class="ms-2">Showing:</span>&nbsp;
+                            <select id="crudMaster-pageSizeSelect" class="form-select form-select-sm">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-auto">
+                        <div class="search-box me-3">
+                            <form class="position-relative">
+                                <input class="form-control search-input search"
+                                       id="crudMaster-searchInput"
+                                       type="search"
+                                       placeholder="Search here"
+                                       aria-label="Search" />
+                                <span class="fas fa-search search-box-icon"></span>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+               
+                <div class="table-responsive">
+                    <table class="table table-sm border-top table-hover border-translucent fs-9">
+                        <thead>
+                            <tr>
+                                <th class="text-center align-middle ps-0" style="width:5%;">
+                                    @Html.Raw("Sl.")
+                                </th>
+                                @foreach (var prop in Model.Metadata.Properties)
+                                {
+                                    <th class="white-space-nowrap align-middle ps-0">@prop.DisplayName</th>
+                                }
+                                <th class="white-space-nowrap align-middle ps-0" style="width:10%;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="crudMaster-tBody">
+                            @if (Model.Rows.Count == 0)
+                            {
+                                <tr id="crudMaster-emptyRow">
+                                    <td colspan="@colCount" class="text-center text-muted py-4">
+                                        No @Model.EntityName records found.
+                                    </td>
+                                </tr>
+                            }
+                            @{
+                                var sl = 1;
+                            }
+                            @foreach (var row in Model.Rows)
+                            {
+                                <tr class="position-static crudMaster-row">
+                                    <td class="text-center align-middle white-space-nowrap ps-0">@sl</td>
+                                    @foreach (var prop in Model.Metadata.Properties)
+                                    {
+                                        var val = row.Values.GetValueOrDefault(prop.Name, "");
+                                        if (prop.InputType == CrudInputType.Checkbox)
+                                        {
+                                            <td class="align-middle white-space-nowrap ps-0">
+                                                @if (val == "Yes")
+                                                {
+                                                    <span class="badge bg-success">Yes</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">No</span>
+                                                }
+                                            </td>
+                                        }
+                                        else
+                                        {
+                                            <td class="align-middle white-space-nowrap ps-0">@val</td>
+                                        }
+                                    }
+                                    <td class="align-middle white-space-nowrap">
+                                        <div class="d-flex gap-2">
+                                            <a class="btn btn-outline-light btn-icon fs-8 text-black border-0 crudMaster-editBtn"
+                                               href="#!"
+                                               data-id="@row.Id"
+                                               data-values="@System.Text.Json.JsonSerializer.Serialize(row.Values)"
+                                               title="Edit">
+                                                <i class="fa-regular fa-pen-to-square"></i>
+                                            </a>
+                                            <a class="btn btn-outline-light btn-icon fs-8 text-black border-0 crudMaster-deleteBtn"
+                                               href="#!"
+                                               data-id="@row.Id"
+                                               title="Delete">
+                                                <i class="fa-regular fa-trash-can"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                sl++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+              
+                <div class="d-flex flex-wrap align-items-center justify-content-between py-2 pe-0 fs-9 border-bottom border-translucent">
+                    <div class="d-flex">
+                        <p class="mb-0 d-none d-sm-block me-3 fw-semibold text-body" id="crudMaster-paginationInfo"></p>
+                    </div>
+                    <div class="d-flex">
+                        <button class="page-link" id="crudMaster-prevPageBtn">
+                            <span class="fas fa-chevron-left"></span>
+                        </button>
+                        <ul class="mb-0 pagination" id="crudMaster-paginationLinks"></ul>
+                        <button class="page-link pe-0" id="crudMaster-nextPageBtn">
+                            <span class="fas fa-chevron-right"></span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+<div class="modal fade" id="crudMaster-deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <i class="fa-regular fa-trash-can fa-2x text-danger mb-3"></i>
+                <h5>Delete Record?</h5>
+                <p class="text-muted fs-9 mb-0">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer justify-content-center border-0 pt-0">
+                <button type="button" class="btn btn-phoenix-primary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger px-4" id="crudMaster-deleteConfirmBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+
+            var entityName  = '@Model.EntityName';
+            var saveUrl     = '@Url.Action("SaveAjax", "CrudMaster", new { entity = Model.EntityName })';
+            var updateUrl   = '@Url.Action("UpdateAjax", "CrudMaster", new { entity = Model.EntityName })';
+            var deleteUrl   = '@Url.Action("DeleteAjax", "CrudMaster", new { entity = Model.EntityName })';
+            var getByIdUrl  = '@Url.Action("GetById", "CrudMaster", new { entity = Model.EntityName })';
+
+            var pageSize    = 5;
+            var currentPage = 1;
+            var allRows     = [];
+            var filtered    = [];
+            var pendingDeleteId = null;
+
+            $(document).ready(function () {
+
+                // collect rows
+                $('#crudMaster-tBody tr.crudMaster-row').each(function () {
+                    allRows.push($(this));
+                });
+                filtered = allRows.slice();
+                renderPage();
+
+                // ---- SAVE ----
+                $('#crudMaster-saveBtn').on('click', function () {
+                    var id = $('#crudMaster-id').val();
+                    var isEdit = id !== '';
+
+                    $('#crudMaster-saveBtn').prop('disabled', true)
+                        .html('<i class="fa fa-spinner fa-spin"></i> Saving...');
+
+                    var formData = new FormData($('#crudMaster-form')[0]);
+
+                    $.ajax({
+                        url: isEdit ? updateUrl + '/' + id : saveUrl,
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function (res) {
+                            if (res.isSuccess) {
+                                toastr.success(res.message);
+                                clearForm();
+                                reloadTable();
+                            } else {
+                                showErrors(res.errors || [res.message]);
+                            }
+                            $('#crudMaster-saveBtn').prop('disabled', false).html('Save');
+                        },
+                        error: function () {
+                            toastr.error('An error occurred.');
+                            $('#crudMaster-saveBtn').prop('disabled', false).html('Save');
+                        }
+                    });
+                });
+
+                // ---- EDIT ----
+                $(document).on('click', '.crudMaster-editBtn', function (e) {
+                    e.preventDefault();
+                    var id     = $(this).data('id');
+                    var values = $(this).data('values');
+
+                    $('#crudMaster-id').val(id);
+                    $('#crudMaster-formTitle').text('Edit ' + entityName);
+                    $('#crudMaster-saveBtn').text('Update');
+
+                    // populate fields from data-values
+                    $.each(values, function (fieldName, fieldValue) {
+                        var $el = $('#field_' + fieldName);
+                        if ($el.is(':checkbox')) {
+                            $el.prop('checked', fieldValue === 'true' || fieldValue === true);
+                        } else {
+                            $el.val(fieldValue);
+                        }
+                    });
+
+                    hideErrors();
+                    $('html, body').animate({ scrollTop: 0 }, 200);
+                });
+
+                // ---- DELETE ----
+                $(document).on('click', '.crudMaster-deleteBtn', function (e) {
+                    e.preventDefault();
+                    pendingDeleteId = $(this).data('id');
+                    var modal = new bootstrap.Modal(document.getElementById('crudMaster-deleteModal'));
+                    modal.show();
+                });
+
+                $('#crudMaster-deleteConfirmBtn').on('click', function () {
+                    if (!pendingDeleteId) return;
+                    $.ajax({
+                        url: deleteUrl + '/' + pendingDeleteId,
+                        type: 'POST',
+                        data: { __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').val() },
+                        success: function (res) {
+                            bootstrap.Modal.getInstance(document.getElementById('crudMaster-deleteModal')).hide();
+                            if (res.isSuccess) {
+                                toastr.success(res.message);
+                                reloadTable();
+                            } else {
+                                toastr.error(res.message);
+                            }
+                            pendingDeleteId = null;
+                        }
+                    });
+                });
+
+                // ---- RESET ----
+                $('#crudMaster-resetBtn').on('click', function () {
+                    clearForm();
+                });
+
+                // ---- SEARCH ----
+                var searchTimer;
+                $('#crudMaster-searchInput').on('input', function () {
+                    clearTimeout(searchTimer);
+                    var val = $(this).val().toLowerCase().trim();
+                    searchTimer = setTimeout(function () {
+                        currentPage = 1;
+                        filtered = val === ''
+                            ? allRows.slice()
+                            : allRows.filter(function (r) {
+                                return r.text().toLowerCase().indexOf(val) >= 0;
+                            });
+                        renderPage();
+                    }, 300);
+                });
+
+                // ---- PAGE SIZE ----
+                $('#crudMaster-pageSizeSelect').on('change', function () {
+                    pageSize    = parseInt($(this).val());
+                    currentPage = 1;
+                    renderPage();
+                });
+
+                // ---- PAGINATION ----
+                $('#crudMaster-prevPageBtn').on('click', function () {
+                    if (currentPage > 1) { currentPage--; renderPage(); }
+                });
+                $('#crudMaster-nextPageBtn').on('click', function () {
+                    if (currentPage < Math.ceil(filtered.length / pageSize)) { currentPage++; renderPage(); }
+                });
+                $(document).on('click', '.crudMaster-page-link', function () {
+                    currentPage = parseInt($(this).data('page'));
+                    renderPage();
+                });
+            });
+
+            // ---- helpers ----
+
+            function clearForm() {
+                $('#crudMaster-form')[0].reset();
+                $('#crudMaster-id').val('');
+                $('#crudMaster-formTitle').text('Add ' + entityName);
+                $('#crudMaster-saveBtn').text('Save');
+                hideErrors();
+            }
+
+            function showErrors(errors) {
+                var list = $('#crudMaster-errorList').empty();
+                errors.forEach(function (e) { list.append('<li>' + e + '</li>'); });
+                $('#crudMaster-errorBox').show();
+            }
+
+            function hideErrors() {
+                $('#crudMaster-errorBox').hide();
+                $('#crudMaster-errorList').empty();
+            }
+
+            function reloadTable() {
+                // full page reload to get fresh server-rendered rows
+                window.location.reload();
+            }
+
+            function renderPage() {
+                var total      = filtered.length;
+                var totalPages = Math.max(1, Math.ceil(total / pageSize));
+                var from       = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+                var to         = Math.min(currentPage * pageSize, total);
+
+                allRows.forEach(function (r) { r.hide(); });
+                filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                        .forEach(function (r) { r.show(); });
+
+                var emptyRow = $('#crudMaster-emptyRow');
+                if (total === 0) {
+                    if (emptyRow.length === 0) {
+                        $('#crudMaster-tBody').append(
+                            '<tr id="crudMaster-emptyRow"><td colspan="100" class="text-center text-muted py-4">No records match your search.</td></tr>'
+                        );
+                    }
+                } else {
+                    emptyRow.remove();
+                }
+
+                $('#crudMaster-paginationInfo').text('Showing ' + from + ' to ' + to + ' of ' + total + ' entries');
+                $('#crudMaster-prevPageBtn').prop('disabled', currentPage <= 1);
+                $('#crudMaster-nextPageBtn').prop('disabled', currentPage >= totalPages);
+
+                var links = $('#crudMaster-paginationLinks');
+                links.empty();
+                for (var p = 1; p <= totalPages; p++) {
+                    links.append(
+                        '<li class="page-item ' + (p === currentPage ? 'active' : '') + '">' +
+                        '<a class="page-link crudMaster-page-link" href="#!" data-page="' + p + '">' + p + '</a>' +
+                        '</li>'
+                    );
+                }
+            }
+
+        })();
+    </script>
+}

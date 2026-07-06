@@ -1,0 +1,245 @@
+@model GenericCrud.ViewModels.CrudFormViewModel
+
+@using GenericCrud.Metadata
+@{
+    ViewData["Title"] = (Model.IsEdit ? "Edit " : "New ") + Model.EntityName;
+}
+
+<div class="row g-2">
+    <div class="col-12 col-md-8 col-xl-6 col-xxl-5">
+        <div class="card h-100">
+
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    @(Model.IsEdit ? "Edit " + Model.EntityName : "New " + Model.EntityName)
+                </h4>
+                <a class="btn btn-phoenix-primary btn-sm"
+                   asp-controller="CrudMaster"
+                   asp-action="Index"
+                   asp-route-entity="@Model.EntityName">
+                    <i class="fa-regular fa-arrow-left me-1"></i> Back to List
+                </a>
+            </div>
+
+            <div class="card-body mt-2">
+
+                @if (Model.Errors.Any())
+                {
+                    <div class="alert alert-danger alert-dismissible fade show fs-9 mb-3" role="alert">
+                        <ul class="mb-0">
+                            @foreach (var error in Model.Errors)
+                            {
+                                <li>@error</li>
+                            }
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                }
+
+                <form method="post"
+                      enctype="multipart/form-data"
+                      action="@(Model.IsEdit
+                                                  ? Url.Action("Update", "CrudMaster", new { entity = Model.EntityName, id = Model.Id })
+                                              : Url.Action("Save", "CrudMaster", new { entity = Model.EntityName }))">
+                    @Html.AntiForgeryToken()
+
+                    @foreach (var prop in Model.Metadata.Properties.Where(p => !p.IsIdentity))
+                    {
+                        var value = Model.Values.GetValueOrDefault(prop.Name);
+
+                        if (prop.IsPrimaryKey && Model.IsEdit)
+                        {
+                            <input type="hidden" name="@prop.Name" value="@value" />
+                        }
+                        else
+                        {
+                            <div class="col-sm-12 col-md-12 mb-3">
+
+                                @switch (prop.InputType)
+                                {
+                                    // ---- CHECKBOX (form-switch) ----
+                                    case CrudInputType.Checkbox:
+                                        <div class="d-flex align-items-center gap-2 ps-1">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       role="switch"
+                                                       id="field_@prop.Name"
+                                                       name="@prop.Name"
+                                                       value="true"
+                                                @(value == "true" ? "checked" : "") />
+                                            </div>
+                                            <label class="form-check-label mb-0" for="field_@prop.Name">
+                                                @prop.DisplayName
+                                                @if (prop.IsRequired)
+                                                {
+                                                    <span class="text-danger ms-1">*</span>
+                                                }
+                                            </label>
+                                        </div>
+                                        break;
+
+                                    // ---- TEXTAREA ----
+                                    case CrudInputType.TextArea:
+                                        <div class="flatpickr-input-container">
+                                            <div class="form-floating">
+                                                <textarea id="field_@prop.Name"
+                                                          name="@prop.Name"
+                                                          class="form-control"
+                                                          placeholder="@prop.DisplayName"
+                                                          rows="3"
+                                                          maxlength="@prop.MaxLength"
+                                                @(prop.IsRequired ? "required" : "")>@value</textarea>
+                                                <label for="field_@prop.Name">
+                                                    @prop.DisplayName
+                                                    @if (prop.IsRequired)
+                                                    {
+                                                        <span class="text-danger">*</span>
+                                                    }
+                                                </label>
+                                            </div>
+                                        </div>
+                                        break;
+
+                                    // ---- FK DROPDOWN ----
+                                    case CrudInputType.Dropdown when prop.IsForeignKey:
+                                        <div class="form-floating">
+                                            <select id="field_@prop.Name"
+                                                    name="@prop.Name"
+                                                    class="form-select"
+                                                @(prop.IsRequired ? "required" : "")>
+                                                <option value="">-- Select @prop.DisplayName --</option>
+                                                @foreach (var option in Model.DropdownOptions.GetValueOrDefault(prop.Name, new List<GenericCrud.Services.DropdownItem>()))
+                                                {
+                                                    if (option.Value == value)
+                                                    {
+                                                        <option value="@option.Value" selected>@option.Text</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@option.Value">@option.Text</option>
+                                                    }
+                                                }
+                                            </select>
+                                            <label for="field_@prop.Name">
+                                                @prop.DisplayName
+                                                @if (prop.IsRequired)
+                                                {
+                                                    <span class="text-danger">*</span>
+                                                }
+                                            </label>
+                                        </div>
+                                        break;
+
+                                    // ---- ENUM DROPDOWN ----
+                                    case CrudInputType.Dropdown:
+                                        <div class="form-floating">
+                                            <select id="field_@prop.Name"
+                                                    name="@prop.Name"
+                                                    class="form-select"
+                                                @(prop.IsRequired ? "required" : "")>
+                                                @foreach (var enumValue in Enum.GetNames(prop.UnderlyingType))
+                                                {
+                                                    if (enumValue == value)
+                                                    {
+                                                        <option value="@enumValue" selected>@enumValue</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@enumValue">@enumValue</option>
+                                                    }
+                                                }
+                                            </select>
+                                            <label for="field_@prop.Name">
+                                                @prop.DisplayName
+                                                @if (prop.IsRequired)
+                                                {
+                                                    <span class="text-danger">*</span>
+                                                }
+                                            </label>
+                                        </div>
+                                        break;
+
+                                    // ---- FILE ----
+                                    case CrudInputType.File:
+                                        <label class="form-label fw-semibold fs-9 text-body-secondary mb-1">
+                                            @prop.DisplayName
+                                            @if (prop.IsRequired)
+                                            {
+                                                <span class="text-danger">*</span>
+                                            }
+                                        </label>
+                                        <input type="file"
+                                               id="field_@prop.Name"
+                                               name="@prop.Name"
+                                               class="form-control" />
+                                        break;
+
+                                    // ---- TEXT / NUMBER / DECIMAL / DATE / TIME ----
+                                    default:
+                                        {
+                                            var inputType = prop.InputType switch
+                                            {
+                                                CrudInputType.Number => "number",
+                                                CrudInputType.Decimal => "number",
+                                                CrudInputType.Date => "date",
+                                                CrudInputType.Time => "time",
+                                                _ => "text"
+                                            };
+                                            var step = prop.InputType == CrudInputType.Decimal ? "0.01" : "1";
+                                            var isNumeric = prop.InputType is CrudInputType.Number or CrudInputType.Decimal;
+                                            <div class="flatpickr-input-container">
+                                                <div class="form-floating">
+                                                    <input type="@inputType"
+                                                           id="field_@prop.Name"
+                                                           name="@prop.Name"
+                                                           class="form-control"
+                                                           placeholder="@prop.DisplayName"
+                                                           value="@value"
+                                                           autocomplete="off"
+                                                           maxlength="@(prop.MaxLength > 0 ? prop.MaxLength.ToString() : "")"
+                                                           required="@prop.IsRequired"
+                                                           step="@(isNumeric ? step : "")"
+                                                           min="@(isNumeric ? prop.RangeMin.ToString() : "")"
+                                                           max="@(isNumeric ? prop.RangeMax.ToString() : "")" />
+                                                    <label for="field_@prop.Name">
+                                                        @prop.DisplayName
+                                                        @if (prop.IsRequired)
+                                                        {
+                                                            <span class="text-danger">*</span>
+                                                        }
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        }
+                                        break;
+                                }
+
+                            </div>
+                        }
+                    }
+
+                    {{!-- action buttons --}}
+                    <div class="col-12 mb-2 mt-1">
+                        <div class="row g-3 justify-content-end">
+                            <div class="col-auto">
+                                <a class="btn btn-phoenix-primary px-5"
+                                   asp-controller="CrudMaster"
+                                   asp-action="Index"
+                                   asp-route-entity="@Model.EntityName">
+                                    Cancel
+                                </a>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary px-5 px-sm-15">
+                                    @(Model.IsEdit ? "Update" : "Save")
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
