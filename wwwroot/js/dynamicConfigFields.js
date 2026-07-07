@@ -11,6 +11,28 @@
             message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
     }
 
+    var allColumns = [];
+
+    function loadColumns() {
+        return fetch('/DynamicConfig/GetColumns?tableName=' + encodeURIComponent(window.__dynEntityTableName || ''))
+            .then(function (r) { return r.json(); })
+            .then(function (cols) { allColumns = cols; });
+    }
+
+    function populateFieldNameSelect(keepValue) {
+        var select = document.getElementById('fld_FieldName');
+        var usedNames = window.__dynFieldNames || [];
+        select.innerHTML = '<option value="">-- Select a column --</option>';
+        allColumns.forEach(function (c) {
+            if (usedNames.indexOf(c.name) !== -1 && c.name !== keepValue) return;
+            var opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name + ' (' + c.type + ')';
+            select.appendChild(opt);
+        });
+        select.value = keepValue || '';
+    }
+
     function addOptionRow(value, text) {
         var container = document.getElementById('optionsRows');
         var row = document.createElement('div');
@@ -35,6 +57,8 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         if (typeof bootstrap === 'undefined') return;
+
+        loadColumns();
 
         // ---------- section modal ----------
         var sectionModalEl = document.getElementById('sectionModal');
@@ -66,11 +90,19 @@
             document.getElementById('fld_Id').value = 0;
             document.getElementById('optionsRows').innerHTML = '';
             document.getElementById('fieldModalTitle').textContent = 'New Field';
+            populateFieldNameSelect('');
             toggleTypeSections();
         }
 
         document.getElementById('fld_InputType').addEventListener('change', toggleTypeSections);
         document.getElementById('btnAddOption').addEventListener('click', function () { addOptionRow('', ''); });
+
+        document.getElementById('fld_FieldName').addEventListener('change', function () {
+            var labelEl = document.getElementById('fld_Label');
+            if (!labelEl.value && this.value) {
+                labelEl.value = this.value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
+            }
+        });
 
         document.getElementById('btnNewField').addEventListener('click', function () {
             resetFieldForm();
@@ -81,6 +113,7 @@
             btn.addEventListener('click', function () {
                 var d = JSON.parse(btn.getAttribute('data-field'));
                 resetFieldForm();
+                populateFieldNameSelect(d.FieldName);
 
                 document.getElementById('fld_Id').value = d.Id;
                 document.getElementById('fld_FieldName').value = d.FieldName;

@@ -139,7 +139,9 @@
                     <div class="row g-2">
                         <div class="col-md-6">
                             <label class="form-label">Physical Column Name *</label>
-                            <input type="text" class="form-control" name="FieldName" id="fld_FieldName" required />
+                            <select class="form-select" name="FieldName" id="fld_FieldName" required>
+                                <option value="">-- Select a column --</option>
+                            </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Label *</label>
@@ -294,7 +296,10 @@
     </div>
 </div>
 
-<script>window.__dynFieldNames = @Html.Raw(fieldNamesJson);</script>
+<script>
+    window.__dynFieldNames = @Html.Raw(fieldNamesJson);
+    window.__dynEntityTableName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.EntityName));
+</script>
 
 @section Scripts {
     <script src="~/js/dynamicConfigFields.js"></script>

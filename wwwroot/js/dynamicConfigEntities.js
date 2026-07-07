@@ -16,6 +16,18 @@
         if (!modalEl || typeof bootstrap === 'undefined') return;
         var modal = new bootstrap.Modal(modalEl);
         var form = document.getElementById('entityForm');
+        var tableSelect = document.getElementById('ent_EntityName');
+
+        fetch('/DynamicConfig/GetTables')
+            .then(function (r) { return r.json(); })
+            .then(function (tables) {
+                tables.forEach(function (t) {
+                    var opt = document.createElement('option');
+                    opt.value = t;
+                    opt.textContent = t;
+                    tableSelect.appendChild(opt);
+                });
+            });
 
         function resetForm() {
             form.reset();

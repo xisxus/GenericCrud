@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GenericCrud.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260707103238_inti")]
+    [Migration("20260707111945_inti")]
     partial class inti
     {
         /// <inheritdoc />

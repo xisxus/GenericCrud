@@ -1,8 +1,10 @@
+using System.Data;
 using GenericCrud.Data;
 using GenericCrud.Models.Dynamic;
 using GenericCrud.Services;
 using GenericCrud.ViewModels.Dynamic;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace GenericCrud.Controllers
@@ -294,6 +296,52 @@ namespace GenericCrud.Controllers
 
             if (entityName != null) _metadataService.InvalidateCache(entityName);
             return Json(new { isSuccess = true });
+        }
+
+        // GET /DynamicConfig/GetTables — physical tables available to pick as an entity's source.
+        [HttpGet("GetTables")]
+        public async Task<IActionResult> GetTables()
+        {
+            var conn = await GetOpenConnectionAsync();
+            var tables = new List<string>();
+
+            const string sql = @"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                                  WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'Dynamic%'
+                                  ORDER BY TABLE_NAME";
+
+            await using var cmd = new SqlCommand(sql, conn);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) tables.Add(reader.GetString(0));
+
+            return Json(tables);
+        }
+
+        // GET /DynamicConfig/GetColumns?tableName=ProductCategories — columns for the field-name dropdown.
+        [HttpGet("GetColumns")]
+        public async Task<IActionResult> GetColumns(string tableName)
+        {
+            if (string.IsNullOrWhiteSpace(tableName)) return Json(new List<object>());
+
+            var conn = await GetOpenConnectionAsync();
+            var columns = new List<object>();
+
+            const string sql = @"SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                                  WHERE TABLE_NAME = @t ORDER BY ORDINAL_POSITION";
+
+            await using var cmd = new SqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@t", tableName);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                columns.Add(new { name = reader.GetString(0), type = reader.GetString(1) });
+
+            return Json(columns);
+        }
+
+        private async Task<SqlConnection> GetOpenConnectionAsync()
+        {
+            var conn = (SqlConnection)_context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+            return conn;
         }
     }
 }
