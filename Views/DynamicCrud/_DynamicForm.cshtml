@@ -1,0 +1,197 @@
+@model DynamicFormViewModel
+
+@{
+    var sections = Model.Metadata.Sections.OrderBy(s => s.SortOrder).ToList();
+    var fieldsBySection = Model.Metadata.FormFields
+        .GroupBy(f => f.SectionId ?? -1)
+        .ToDictionary(g => g.Key, g => g.ToList());
+
+    async Task RenderField(DynamicFieldMetadata field)
+    {
+        var value = Model.GetValue(field.FieldName) ?? field.DefaultValue ?? "";
+        var hasError = Model.HasError(field.FieldName);
+        var errorMsg = Model.FirstError(field.FieldName);
+        var inputClass = "form-control" + (hasError ? " is-invalid" : "");
+        var wrapperAttrs = "";
+        if (field.HasCondition)
+        {
+            wrapperAttrs = $"data-conditional-on=\"{field.ConditionalOnFieldName}\" data-conditional-value=\"{field.ConditionalOnValue}\"";
+        }
+
+        <div class="col-md-6 dyn-field-wrapper @(field.InputType == DynamicInputType.Hidden ? "d-none" : "")"
+             data-field-name="@field.FieldName" @Html.Raw(wrapperAttrs)>
+
+            @if (field.InputType != DynamicInputType.Hidden && field.InputType != DynamicInputType.Checkbox)
+            {
+                <label class="form-label">
+                    @field.Label
+                    @if (field.IsRequired)
+                    {
+                        <span class="text-danger">*</span>
+                    }
+                </label>
+            }
+
+            @switch (field.InputType)
+            {
+                case DynamicInputType.TextArea:
+                    <textarea name="@field.FieldName" class="@inputClass" rows="3"
+                              minlength="@field.Validation?.MinLength" maxlength="@field.Validation?.MaxLength"
+                              @(field.IsRequired ? "required" : "")>@value</textarea>
+                    break;
+
+                case DynamicInputType.Number:
+                    <input type="number" step="1" name="@field.FieldName" class="@inputClass" value="@value"
+                           min="@field.Validation?.MinValue" max="@field.Validation?.MaxValue"
+                           @(field.IsRequired ? "required" : "") />
+                    break;
+
+                case DynamicInputType.Decimal:
+                    <input type="number" step="0.01" name="@field.FieldName" class="@inputClass" value="@value"
+                           min="@field.Validation?.MinValue" max="@field.Validation?.MaxValue"
+                           @(field.IsRequired ? "required" : "") />
+                    break;
+
+                case DynamicInputType.Date:
+                    <input type="date" name="@field.FieldName" class="@inputClass" value="@value"
+                           @(field.IsRequired ? "required" : "") />
+                    break;
+
+                case DynamicInputType.Time:
+                    <input type="time" name="@field.FieldName" class="@inputClass" value="@value"
+                           @(field.IsRequired ? "required" : "") />
+                    break;
+
+                case DynamicInputType.Dropdown:
+                    <select name="@field.FieldName" class="form-select @(hasError ? "is-invalid" : "")" @(field.IsRequired ? "required" : "")>
+                        <option value="">-- Select @field.Label --</option>
+                        @{
+                            var ddOptions = field.ForeignKey != null && Model.FkOptions.TryGetValue(field.FieldName, out var fkOpts)
+                                ? fkOpts
+                                : field.Options.Select(o => (o.Value, o.Text)).ToList();
+                        }
+                        @foreach (var opt in ddOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == value)">@opt.Text</option>
+                        }
+                    </select>
+                    break;
+
+                case DynamicInputType.Radio:
+                    {
+                        var radioOptions = field.ForeignKey != null && Model.FkOptions.TryGetValue(field.FieldName, out var fkRadioOpts)
+                            ? fkRadioOpts
+                            : field.Options.Select(o => (o.Value, o.Text)).ToList();
+                        <div>
+                            @foreach (var opt in radioOptions)
+                            {
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="@field.FieldName"
+                                           id="@(field.FieldName)_@opt.Value" value="@opt.Value" checked="@(opt.Value == value)" />
+                                    <label class="form-check-label" for="@(field.FieldName)_@opt.Value">@opt.Text</label>
+                                </div>
+                            }
+                        </div>
+                    }
+                    break;
+
+                case DynamicInputType.Checkbox:
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="@field.FieldName" id="@field.FieldName"
+                               value="true" checked="@(value == "true")" />
+                        <input type="hidden" name="@field.FieldName" value="false" />
+                        <label class="form-check-label" for="@field.FieldName">
+                            @field.Label
+                            @if (field.IsRequired)
+                            {
+                                <span class="text-danger">*</span>
+                            }
+                        </label>
+                    </div>
+                    break;
+
+                case DynamicInputType.File:
+                    <input type="file" name="@field.FieldName" class="@inputClass"
+                           accept="@field.FileConfig?.AllowedExtensions" @(field.IsRequired && !Model.IsEdit ? "required" : "") />
+                    @if (Model.IsEdit && !string.IsNullOrEmpty(value))
+                    {
+                        <div class="form-text">Current file: <a href="@value" target="_blank">@value</a></div>
+                    }
+                    break;
+
+                case DynamicInputType.Email:
+                    <input type="email" name="@field.FieldName" class="@inputClass" value="@value"
+                           maxlength="@field.Validation?.MaxLength" @(field.IsRequired ? "required" : "") />
+                    break;
+
+                case DynamicInputType.Phone:
+                    <input type="tel" name="@field.FieldName" class="@inputClass" value="@value"
+                           maxlength="@field.Validation?.MaxLength" @(field.IsRequired ? "required" : "") />
+                    break;
+
+                case DynamicInputType.Password:
+                    <input type="password" name="@field.FieldName" class="@inputClass" value="@value"
+                           minlength="@field.Validation?.MinLength" maxlength="@field.Validation?.MaxLength"
+                           @(field.IsRequired ? "required" : "") />
+                    break;
+
+                case DynamicInputType.Color:
+                    <input type="color" name="@field.FieldName" class="form-control form-control-color" value="@(string.IsNullOrEmpty(value) ? "#000000" : value)" />
+                    break;
+
+                case DynamicInputType.ReadOnly:
+                    <input type="text" class="form-control" value="@value" readonly />
+                    <input type="hidden" name="@field.FieldName" value="@value" />
+                    break;
+
+                case DynamicInputType.Hidden:
+                    <input type="hidden" name="@field.FieldName" value="@value" />
+                    break;
+
+                default:
+                    <input type="text" name="@field.FieldName" class="@inputClass" value="@value"
+                           minlength="@field.Validation?.MinLength" maxlength="@field.Validation?.MaxLength"
+                           pattern="@field.Validation?.Pattern" @(field.IsRequired ? "required" : "") />
+                    break;
+            }
+
+            @if (hasError)
+            {
+                <div class="invalid-feedback d-block">@errorMsg</div>
+            }
+        </div>
+        await Task.CompletedTask;
+    }
+}
+
+<input type="hidden" id="conditional-config" value='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+    Model.Metadata.Fields.Where(f => f.HasCondition).Select(f => new { field = f.FieldName, on = f.ConditionalOnFieldName, value = f.ConditionalOnValue })))' />
+
+@{
+    var noSectionFields = fieldsBySection.TryGetValue(-1, out var nsf) ? nsf : new List<DynamicFieldMetadata>();
+}
+
+@if (noSectionFields.Count > 0)
+{
+    <div class="row g-3 mb-2">
+        @foreach (var field in noSectionFields.OrderBy(f => f.FormOrder))
+        {
+            await RenderField(field);
+        }
+    </div>
+}
+
+@foreach (var section in sections)
+{
+    if (!fieldsBySection.TryGetValue(section.Id, out var sectionFields) || sectionFields.Count == 0) continue;
+
+    <fieldset class="border rounded p-3 mb-3">
+        <legend class="fs-6 fw-semibold w-auto px-2">section.Title</legend>
+        <div class="row g-3">
+            @foreach (var field in sectionFields.OrderBy(f => f.FormOrder))
+            {
+                await RenderField(field);
+            }
+        </div>
+    </fieldset>
+}

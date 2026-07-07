@@ -1,0 +1,167 @@
+@model List<DynamicEntity>
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active">Dynamic Entities</li>
+    </ol>
+</nav>
+
+<div id="dynconfig-alert"></div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Dynamic Entities</h5>
+        <button type="button" class="btn btn-primary btn-sm" id="btnNewEntity">
+            <i class="bi bi-plus-lg"></i> New Entity
+        </button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Page Title</th>
+                    <th>Table Name</th>
+                    <th>Soft Delete</th>
+                    <th>Sort</th>
+                    <th>Active</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4">No entities configured yet.</td></tr>
+                }
+                @foreach (var e in Model)
+                {
+                    <tr>
+                        <td>@e.PageTitle</td>
+                        <td><code>@e.EntityName</code></td>
+                        <td>@(e.SoftDelete ? "Yes" : "No")</td>
+                        <td>@(e.DefaultSortColumn ?? e.PrimaryKeyColumn) @e.DefaultSortDirection</td>
+                        <td>
+                            @if (e.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inactive</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="/DynamicConfig/Fields/@e.Id" title="Manage Fields">
+                                <i class="bi bi-ui-checks-grid"></i> Fields
+                            </a>
+                            <a class="btn btn-sm btn-outline-success" href="/DynamicCrud/Index/@e.EntityName" title="View Data">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-entity"
+                                    data-entity='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(e))' title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete-entity"
+                                    data-id="@e.Id" data-name="@e.PageTitle" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Entity create/edit modal -->
+<div class="modal fade" id="entityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="entityForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Id" id="ent_Id" value="0" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="entityModalTitle">New Entity</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label">Physical Table Name *</label>
+                        <input type="text" class="form-control" name="EntityName" id="ent_EntityName" required
+                               placeholder="e.g. ProductCategories" />
+                        <div class="form-text">Must match an existing table in the database. Also used in the URL.</div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Page Title *</label>
+                        <input type="text" class="form-control" name="PageTitle" id="ent_PageTitle" required />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Primary Key Column</label>
+                            <input type="text" class="form-control" name="PrimaryKeyColumn" id="ent_PrimaryKeyColumn" value="Id" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Page Size</label>
+                            <input type="number" class="form-control" name="PageSize" id="ent_PageSize" value="10" min="1" />
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-6">
+                            <label class="form-label">Default Sort Column</label>
+                            <input type="text" class="form-control" name="DefaultSortColumn" id="ent_DefaultSortColumn" placeholder="(defaults to PK)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Default Sort Direction</label>
+                            <select class="form-select" name="DefaultSortDirection" id="ent_DefaultSortDirection">
+                                <option value="ASC">Ascending</option>
+                                <option value="DESC">Descending</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" name="SoftDelete" id="ent_SoftDelete" value="true" />
+                        <input type="hidden" name="SoftDelete" value="false" />
+                        <label class="form-check-label" for="ent_SoftDelete">Soft delete</label>
+                    </div>
+                    <div class="mb-2" id="ent_SoftDeleteColumnWrap">
+                        <label class="form-label">Soft Delete Column</label>
+                        <input type="text" class="form-control" name="SoftDeleteColumn" id="ent_SoftDeleteColumn" value="IsDeleted" />
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="IsActive" id="ent_IsActive" value="true" checked />
+                        <input type="hidden" name="IsActive" value="false" />
+                        <label class="form-check-label" for="ent_IsActive">Active</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteEntityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Delete <strong id="deleteEntityName"></strong>? This removes all its field configuration too
+                (the actual data table is <em>not</em> dropped).
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteEntityBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/dynamicConfigEntities.js"></script>
+}
