@@ -88,9 +88,10 @@
                 <div class="modal-body">
                     <div class="mb-2">
                         <label class="form-label">Physical Table Name *</label>
-                        <input type="text" class="form-control" name="EntityName" id="ent_EntityName" required
-                               placeholder="e.g. ProductCategories" />
-                        <div class="form-text">Must match an existing table in the database. Also used in the URL.</div>
+                        <select class="form-select" name="EntityName" id="ent_EntityName" required>
+                            <option value="">-- Select a table --</option>
+                        </select>
+                        <div class="form-text">Loaded from tables that already exist in your database.</div>
                     </div>
                     <div class="mb-2">
                         <label class="form-label">Page Title *</label>

@@ -376,12 +376,14 @@
                                                data-id="@row.Id"
                                                data-values="@System.Text.Json.JsonSerializer.Serialize(row.Values)"
                                                title="Edit">
+                                                &#9998;
                                                 <i class="fa-regular fa-pen-to-square"></i>
                                             </a>
                                             <a class="btn btn-outline-light btn-icon fs-8 text-black border-0 crudMaster-deleteBtn"
                                                href="#!"
                                                data-id="@row.Id"
                                                title="Delete">
+                                                &#128465;
                                                 <i class="fa-regular fa-trash-can"></i>
                                             </a>
                                         </div>
@@ -433,6 +435,8 @@
 </div>
 
 @section Scripts {
+    <script src="~/jquery/jquery.min.js"></script>
+    <script src="~/toastr.js/toastr.min.js"></script>
     <script>
         (function () {
 
