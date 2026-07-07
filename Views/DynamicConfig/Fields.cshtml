@@ -1,0 +1,301 @@
+@model DynamicEntity
+@{
+    var fieldNamesJson = System.Text.Json.JsonSerializer.Serialize(Model.Fields.Select(f => f.FieldName).ToList());
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/DynamicConfig">Dynamic Entities</a></li>
+        <li class="breadcrumb-item active">@Model.PageTitle</li>
+    </ol>
+</nav>
+
+<div id="dynconfig-alert"></div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">@Model.PageTitle <small class="text-muted">/ @Model.EntityName</small></h4>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-success btn-sm" href="/DynamicCrud/Index/@Model.EntityName">
+            <i class="bi bi-eye"></i> View Data
+        </a>
+        <button class="btn btn-outline-secondary btn-sm" id="btnNewSection">
+            <i class="bi bi-collection"></i> New Section
+        </button>
+        <button class="btn btn-primary btn-sm" id="btnNewField">
+            <i class="bi bi-plus-lg"></i> New Field
+        </button>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Field</th>
+                    <th>Label</th>
+                    <th>Type</th>
+                    <th>Section</th>
+                    <th>Form#</th>
+                    <th>Table#</th>
+                    <th>Show</th>
+                    <th>Required</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Fields.Count == 0)
+                {
+                    <tr><td colspan="9" class="text-center text-muted py-4">No fields configured yet.</td></tr>
+                }
+                @foreach (var f in Model.Fields.OrderBy(f => f.FormOrder))
+                {
+                    <tr>
+                        <td><code>@f.FieldName</code></td>
+                        <td>@f.Label</td>
+                        <td><span class="badge bg-light text-dark border">@f.InputType</span></td>
+                        <td>@(Model.Sections.FirstOrDefault(s => s.Id == f.DynamicFieldSectionId)?.Title ?? "—")</td>
+                        <td>@f.FormOrder</td>
+                        <td>@f.TableOrder</td>
+                        <td>
+                            @if (f.ShowInForm) { <span class="badge bg-info-subtle text-dark">Form</span> }
+                            @if (f.ShowInTable) { <span class="badge bg-info-subtle text-dark">Table</span> }
+                        </td>
+                        <td>@(f.IsRequired ? "Yes" : "No")</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-field"
+                                    data-field='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
+                                        f.Id, f.FieldName, f.Label, InputType = f.InputType.ToString(), f.FormOrder, f.TableOrder,
+                                        f.ShowInForm, f.ShowInTable, f.IsRequired, f.DefaultValue, f.DynamicFieldSectionId,
+                                        f.ConditionalOnFieldName, f.ConditionalOnValue,
+                                        MinLength = f.Validation?.MinLength, MaxLength = f.Validation?.MaxLength,
+                                        MinValue = f.Validation?.MinValue, MaxValue = f.Validation?.MaxValue,
+                                        Pattern = f.Validation?.Pattern, MaxFileSizeKb = f.Validation?.MaxFileSizeKb,
+                                        ErrorMessage = f.Validation?.ErrorMessage,
+                                        ForeignTableName = f.ForeignKey?.ForeignTableName, ValueColumn = f.ForeignKey?.ValueColumn,
+                                        TextColumn = f.ForeignKey?.TextColumn, OrderByColumn = f.ForeignKey?.OrderByColumn,
+                                        SaveFolder = f.FileConfig?.SaveFolder, AllowedExtensions = f.FileConfig?.AllowedExtensions,
+                                        MaxSizeKb = f.FileConfig?.MaxSizeKb, RenameToGuid = f.FileConfig?.RenameToGuid ?? true,
+                                        Options = f.Options.OrderBy(o => o.SortOrder).Select(o => new { o.OptionValue, o.OptionText })
+                                    }))' title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete-field"
+                                    data-id="@f.Id" data-name="@f.Label" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- New Section modal -->
+<div class="modal fade" id="sectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="sectionForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title">New Section</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="dynamicEntityId" value="@Model.Id" />
+                    <div class="mb-2">
+                        <label class="form-label">Section Title *</label>
+                        <input type="text" class="form-control" name="title" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Sort Order</label>
+                        <input type="number" class="form-control" name="sortOrder" value="0" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Field create/edit modal -->
+<div class="modal fade" id="fieldModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <form id="fieldForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Id" id="fld_Id" value="0" />
+                <input type="hidden" name="DynamicEntityId" value="@Model.Id" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fieldModalTitle">New Field</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Physical Column Name *</label>
+                            <input type="text" class="form-control" name="FieldName" id="fld_FieldName" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Label *</label>
+                            <input type="text" class="form-control" name="Label" id="fld_Label" required />
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-4">
+                            <label class="form-label">Input Type</label>
+                            <select class="form-select" name="InputType" id="fld_InputType">
+                                @foreach (var t in Enum.GetValues<DynamicInputType>())
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Section</label>
+                            <select class="form-select" name="DynamicFieldSectionId" id="fld_SectionId">
+                                <option value="">(none)</option>
+                                @foreach (var s in Model.Sections.OrderBy(s => s.SortOrder))
+                                {
+                                    <option value="@s.Id">@s.Title</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Default Value</label>
+                            <input type="text" class="form-control" name="DefaultValue" id="fld_DefaultValue" />
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-3">
+                            <label class="form-label">Form Order</label>
+                            <input type="number" class="form-control" name="FormOrder" id="fld_FormOrder" value="0" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Table Order</label>
+                            <input type="number" class="form-control" name="TableOrder" id="fld_TableOrder" value="0" />
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="ShowInForm" id="fld_ShowInForm" value="true" checked />
+                                <input type="hidden" name="ShowInForm" value="false" />
+                                <label class="form-check-label" for="fld_ShowInForm">Show in form</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="ShowInTable" id="fld_ShowInTable" value="true" checked />
+                                <input type="hidden" name="ShowInTable" value="false" />
+                                <label class="form-check-label" for="fld_ShowInTable">Show in table</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="IsRequired" id="fld_IsRequired" value="true" />
+                        <input type="hidden" name="IsRequired" value="false" />
+                        <label class="form-check-label" for="fld_IsRequired">Required</label>
+                    </div>
+
+                    <hr />
+
+                    <!-- Validation -->
+                    <h6 class="fw-semibold">Validation</h6>
+                    <div class="row g-2">
+                        <div class="col-md-3"><label class="form-label">Min Length</label><input type="number" class="form-control" name="MinLength" id="fld_MinLength" /></div>
+                        <div class="col-md-3"><label class="form-label">Max Length</label><input type="number" class="form-control" name="MaxLength" id="fld_MaxLength" /></div>
+                        <div class="col-md-3"><label class="form-label">Min Value</label><input type="number" step="any" class="form-control" name="MinValue" id="fld_MinValue" /></div>
+                        <div class="col-md-3"><label class="form-label">Max Value</label><input type="number" step="any" class="form-control" name="MaxValue" id="fld_MaxValue" /></div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-6"><label class="form-label">Regex Pattern</label><input type="text" class="form-control" name="Pattern" id="fld_Pattern" /></div>
+                        <div class="col-md-6"><label class="form-label">Custom Error Message</label><input type="text" class="form-control" name="ErrorMessage" id="fld_ErrorMessage" /></div>
+                    </div>
+
+                    <!-- Options (dropdown/radio, static) -->
+                    <div id="optionsSection" class="mt-3 d-none">
+                        <h6 class="fw-semibold">Static Options <small class="text-muted">(leave empty if using a Foreign Key source below)</small></h6>
+                        <div id="optionsRows"></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAddOption"><i class="bi bi-plus"></i> Add option</button>
+
+                        <h6 class="fw-semibold mt-3">Or: Foreign Key Source</h6>
+                        <div class="row g-2">
+                            <div class="col-md-4"><label class="form-label">Foreign Table Name</label><input type="text" class="form-control" name="ForeignTableName" id="fld_ForeignTableName" /></div>
+                            <div class="col-md-3"><label class="form-label">Value Column</label><input type="text" class="form-control" name="ValueColumn" id="fld_ValueColumn" value="Id" /></div>
+                            <div class="col-md-3"><label class="form-label">Text Column</label><input type="text" class="form-control" name="TextColumn" id="fld_TextColumn" /></div>
+                            <div class="col-md-2"><label class="form-label">Order By</label><input type="text" class="form-control" name="OrderByColumn" id="fld_OrderByColumn" /></div>
+                        </div>
+                    </div>
+
+                    <!-- File upload -->
+                    <div id="fileSection" class="mt-3 d-none">
+                        <h6 class="fw-semibold">File Upload</h6>
+                        <div class="row g-2">
+                            <div class="col-md-4"><label class="form-label">Save Folder</label><input type="text" class="form-control" name="SaveFolder" id="fld_SaveFolder" value="uploads" /></div>
+                            <div class="col-md-4"><label class="form-label">Allowed Extensions</label><input type="text" class="form-control" name="AllowedExtensions" id="fld_AllowedExtensions" value=".jpg,.jpeg,.png,.pdf" /></div>
+                            <div class="col-md-2"><label class="form-label">Max Size (KB)</label><input type="number" class="form-control" name="MaxSizeKb" id="fld_MaxSizeKb" value="2048" /></div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="RenameToGuid" id="fld_RenameToGuid" value="true" checked />
+                                    <input type="hidden" name="RenameToGuid" value="false" />
+                                    <label class="form-check-label" for="fld_RenameToGuid">Rename to GUID</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <!-- Conditional display -->
+                    <h6 class="fw-semibold">Conditional Display</h6>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Only show when field...</label>
+                            <select class="form-select" name="ConditionalOnFieldName" id="fld_ConditionalOnFieldName">
+                                <option value="">(always show)</option>
+                                @foreach (var f in Model.Fields.OrderBy(f => f.FormOrder))
+                                {
+                                    <option value="@f.FieldName">@f.Label (@f.FieldName)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">...equals value</label>
+                            <input type="text" class="form-control" name="ConditionalOnValue" id="fld_ConditionalOnValue" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Field</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteFieldModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">Delete field <strong id="deleteFieldName"></strong>?</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteFieldBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>window.__dynFieldNames = @Html.Raw(fieldNamesJson);</script>
+
+@section Scripts {
+    <script src="~/js/dynamicConfigFields.js"></script>
+}

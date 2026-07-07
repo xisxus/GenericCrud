@@ -35,3 +35,21 @@ Then visit:
 4. Visit `/Crud/YourEntity` — list/create/edit/delete/FK-dropdowns all work immediately.
 
 Connection string is in `appsettings.json` (LocalDB by default) — point it at your SQL Server instance.
+
+## DynamicCrud engine (DB-config-driven, separate from the reflection engine above)
+
+Configure an entity entirely from the database — no C# model, no migration per entity:
+
+1. `dotnet ef migrations add AddDynamicCrudConfig && dotnet ef database update`
+   (adds the `DynamicEntities`/`DynamicFields`/`DynamicFieldValidations`/`DynamicFieldOptions`/
+   `DynamicForeignKeys`/`DynamicFileConfigs`/`DynamicFieldSections` config tables).
+2. Go to `/DynamicConfig` → **New Entity**. `EntityName` must match an existing physical table.
+3. Open **Fields** for that entity and add one row per column: label, input type, form/table
+   order, show-in-form/table, required, validation, static options or an FK source, file-upload
+   settings, section grouping, and conditional display (show only when another field = X).
+4. Visit `/DynamicCrud/Index/{EntityName}` — full list/create/edit/delete is live immediately.
+   Metadata is cached 30 minutes and invalidated automatically whenever you save config changes.
+
+Under the hood `DynamicCrudService` talks to the physical table via raw parameterized ADO.NET
+(there's no POCO for these entities), so any table already in your database works without a
+matching C# class or a new migration.
